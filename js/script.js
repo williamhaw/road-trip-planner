@@ -1,3 +1,8 @@
+//****** Globals ********
+var current_place;
+var place_list = [];
+//************************
+
 function initMap(){
 	var map = new google.maps.Map(document.getElementById('map'), {
 	      center: {lat: 1.354729, lng: 103.811685}, 
@@ -5,18 +10,21 @@ function initMap(){
 	    });
 
 	var input = (document.getElementById('autocomplete-input'));/** @type {!HTMLInputElement} */
+	var destlist = document.getElementById('destinationlist');
 	map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+	map.controls[google.maps.ControlPosition.TOP_RIGHT].push(destlist);
 
 	var autocomplete = new google.maps.places.Autocomplete(input);
 	autocomplete.bindTo('bounds', map);
 
-	var infowindow = new google.maps.InfoWindow();
-	var marker = new google.maps.Marker({
+	
+
+	autocomplete.addListener('place_changed', function() {
+		var infowindow = new google.maps.InfoWindow();
+		var marker = new google.maps.Marker({
 		  map: map,
 		  anchorPoint: new google.maps.Point(0, -29)
 		});
-
-	autocomplete.addListener('place_changed', function() {
 		infowindow.close();
 		marker.setVisible(false);
 		var place = autocomplete.getPlace();
@@ -24,6 +32,12 @@ function initMap(){
 			window.alert("Autocomplete's returned place contains no geometry");
 			return;
 		}
+
+		current_place = place;
+		place_list.push(place);
+		var entry = document.createElement('li');
+    	entry.appendChild(document.createTextNode(place.name));
+		destlist.appendChild(entry);
 
 		// If the place has a geometry, then present it on a map.
 		if (place.geometry.viewport) {

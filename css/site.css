@@ -19,6 +19,15 @@ html, body {
     width: 300px;
 }
 
+#destinationlist {
+	background-color: #fff;
+	margin-right: 12px;
+	height: auto;
+	width: auto;
+	padding: 10px 10px 15px 15px;
+	list-style-type: none;
+}
+
 .controls {
 	margin-top: 10px;
 	border: 1px solid transparent;
