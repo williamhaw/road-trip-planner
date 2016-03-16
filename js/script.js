@@ -1,18 +1,21 @@
 //****** Globals ********
 var current_place;
 var place_list = [];
+var map;
 //************************
 
-function initMap(){
-	var map = new google.maps.Map(document.getElementById('map'), {
+window.onload = function initMap(){
+	map = new google.maps.Map(document.getElementById('map'), {
 	      center: {lat: 1.354729, lng: 103.811685}, 
 	      zoom: 12
 	    });
 
 	var input = (document.getElementById('autocomplete-input'));/** @type {!HTMLInputElement} */
-	var destlist = document.getElementById('destinationlist');
+	var dest_list = document.getElementById('destinationlist');
+	var optimize_button = document.getElementById('optimize-button');
 	map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
-	map.controls[google.maps.ControlPosition.TOP_RIGHT].push(destlist);
+	map.controls[google.maps.ControlPosition.TOP_LEFT].push(optimize_button);
+	map.controls[google.maps.ControlPosition.TOP_RIGHT].push(dest_list);
 
 	var autocomplete = new google.maps.places.Autocomplete(input);
 	autocomplete.bindTo('bounds', map);
@@ -29,7 +32,7 @@ function initMap(){
 		marker.setVisible(false);
 		var place = autocomplete.getPlace();
 		if (!place.geometry) {
-			window.alert("Autocomplete's returned place contains no geometry");
+			window.alert("It doesn't seem like you chose a valid location. Please try again.");
 			return;
 		}
 
@@ -37,7 +40,7 @@ function initMap(){
 		place_list.push(place);
 		var entry = document.createElement('li');
     	entry.appendChild(document.createTextNode(place.name));
-		destlist.appendChild(entry);
+		dest_list.appendChild(entry);
 
 		// If the place has a geometry, then present it on a map.
 		if (place.geometry.viewport) {
@@ -69,4 +72,122 @@ function initMap(){
 		infowindow.open(map, marker);
 		});
 
+}
+
+function optimizeButton(){
+	var points_list = [];
+	for(var point = 0; point < place_list.length; point++){
+		var tmp = {};
+		tmp.lat = place_list[point].geometry.location.lat();
+		tmp.lon = place_list[point].geometry.location.lng();
+		tmp.cluster = -1;
+		points_list.push(tmp);
+	}
+	console.log(points_list);
+	var clusters = kmeans(points_list);
+	console.log(clusters);
+	for (var i = 0; i < clusters.store.length; i++){
+		var marker = new google.maps.Marker({
+	          position: {lat: clusters.store[i].lat, lng: clusters.store[i].lon},
+	          map: map,
+	          title: 'Hello World!'
+	        });
+		marker.setVisible(true);
+	}
+}
+
+function kmeans(points_list){
+
+	var max_k = 10;
+	if (points_list.length < 10) {max_k = points_list.length;}
+
+	var results_list = []
+
+	for (var stage_k = 1; stage_k <= max_k; stage_k++) {
+		var finished = false;
+		var cluster_list = generateClusterList(points_list, stage_k);
+		var num_changes = -1;
+		while(num_changes != 0){
+			num_changes = 0;
+			for (var point_index = 0; point_index < points_list.length; point_index++) {
+				var distance_list = []
+				for (var k = 0; k < cluster_list.length; k++) {
+					distance_list.push(distance(cluster_list[k], points_list[point_index]))
+				}
+				//find closest cluster
+				var closest_index = 0
+				for(var i = 0; i < cluster_list.length; i++){
+					if (distance_list[i]< distance_list[closest_index]) {closest_index = i;}
+				}
+				if(points_list[point_index] != -1 && points_list[point_index].cluster != closest_index){num_changes++;}//if no change of cluster then end
+				points_list[point_index].cluster = closest_index;
+			}
+
+			//move clusters to centroid
+			for(var k = 0; k < cluster_list.length; k++){
+				var counter = 0;
+				cluster_list[k].lat = 0.0;
+				cluster_list[k].lon = 0.0;
+				for(var point_index = 0; point_index < points_list.length; point_index++){
+					cluster_list[k].lat += points_list[point_index].lat;
+					cluster_list[k].lon += points_list[point_index].lon;
+					counter++;
+				}
+				cluster_list[k].lat = cluster_list[k].lat / counter
+				cluster_list[k].lon = cluster_list[k].lon / counter
+			}
+		}
+		//end of kmeans, now create ranking
+		var to_rank = {};
+		to_rank.store = cluster_list;
+		var score = 0.0;
+		for(var point_index = 0; point_index < points_list.length; point_index++){
+			score += distance(points_list[point_index], cluster_list[points_list[point_index].cluster])
+		}
+		to_rank.score = score;
+		results_list.push(to_rank);
+	}
+
+	best_score_index = 0;
+	for(var i = 0; i < results_list.length; i++){
+		if (results_list[i].score < results_list[best_score_index].score) {best_score_index = i}
+	}
+	console.log("results:");
+	console.log(results_list);
+	return results_list[best_score_index]
+}
+
+function distance(a, b){
+	return Math.pow(a.lat - b.lat, 2) + Math.pow(a.lon - b.lon, 2);
+}
+
+function generateClusterList(points_list, k){
+	var result = [];
+	for(var i = 0; i < points_list.length; i++){
+		var cluster_point = {};
+		cluster_point.lat = points_list[i].lat;
+		cluster_point.lon = points_list[i].lon;
+		result.push(cluster_point);
+	}
+	return getRandomSubArray(result, k); //use k points to start
+}
+
+function getRandomSubArray(original, n){
+	var tmp = [];
+	for(var i=0; i < original.length; i++){
+		var tmp_obj = {};
+		tmp_obj.lat = original[i].lat;
+		tmp_obj.lon = original[i].lon;
+		tmp.push(tmp_obj);
+	}
+	var swap_index_store = [];
+	for(var index = 0; index < tmp.length; index++){
+		var swap_index = index + Math.floor(Math.random() * (tmp.length - index));
+		swap_index_store.push(swap_index);
+		var t = tmp[index];
+		tmp[index] = tmp[swap_index];
+		tmp[swap_index] = t;
+	}
+	console.log(swap_index_store);
+	return tmp.slice(0, n);
 }
