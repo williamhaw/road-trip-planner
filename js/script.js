@@ -58,6 +58,9 @@ window.onload = function initMap(){
 			}));
 		marker.setPosition(place.geometry.location);
 		marker.setVisible(true);
+		marker.addListener('click', function() {
+		    infowindow.open(map, marker);
+		});
 
 		var address = '';
 		if (place.address_components) {
@@ -84,7 +87,10 @@ function optimizeButton(){
 		points_list.push(tmp);
 	}
 	console.log(points_list);
+	var start = new Date().getTime();
 	var clusters = kmeans(points_list);
+	var end = new Date().getTime();
+	console.log("Time taken:" + (end-start))
 	console.log(clusters);
 	for (var i = 0; i < clusters.store.length; i++){
 		var marker = new google.maps.Marker({
@@ -103,49 +109,61 @@ function kmeans(points_list){
 
 	var results_list = []
 
-	for (var stage_k = 1; stage_k <= max_k; stage_k++) {
-		var finished = false;
-		var cluster_list = generateClusterList(points_list, stage_k);
-		var num_changes = -1;
-		while(num_changes != 0){
-			num_changes = 0;
-			for (var point_index = 0; point_index < points_list.length; point_index++) {
-				var distance_list = []
-				for (var k = 0; k < cluster_list.length; k++) {
-					distance_list.push(distance(cluster_list[k], points_list[point_index]))
+	for (var stage_k = 1; stage_k <= max_k; stage_k++) { //go through every number of k
+		var within_k_list = [];
+		for (var within_k_index = 0; within_k_index < 100; within_k_index++){
+			var finished = false;
+			var cluster_list = generateClusterList(points_list, stage_k);
+			var num_changes = -1;
+			while(num_changes != 0){
+				num_changes = 0;
+				for (var point_index = 0; point_index < points_list.length; point_index++) {
+					var distance_list = []
+					for (var k = 0; k < cluster_list.length; k++) {
+						distance_list.push(distance(cluster_list[k], points_list[point_index]))
+					}
+					//find closest cluster
+					var closest_index = 0
+					for(var i = 0; i < cluster_list.length; i++){
+						if (distance_list[i]< distance_list[closest_index]) {closest_index = i;}
+					}
+					if(points_list[point_index] != -1 && points_list[point_index].cluster != closest_index){num_changes++;}//if no change of cluster then end
+					points_list[point_index].cluster = closest_index;
 				}
-				//find closest cluster
-				var closest_index = 0
-				for(var i = 0; i < cluster_list.length; i++){
-					if (distance_list[i]< distance_list[closest_index]) {closest_index = i;}
-				}
-				if(points_list[point_index] != -1 && points_list[point_index].cluster != closest_index){num_changes++;}//if no change of cluster then end
-				points_list[point_index].cluster = closest_index;
-			}
 
-			//move clusters to centroid
-			for(var k = 0; k < cluster_list.length; k++){
-				var counter = 0;
-				cluster_list[k].lat = 0.0;
-				cluster_list[k].lon = 0.0;
-				for(var point_index = 0; point_index < points_list.length; point_index++){
-					cluster_list[k].lat += points_list[point_index].lat;
-					cluster_list[k].lon += points_list[point_index].lon;
-					counter++;
+				//move clusters to centroid
+				for(var k = 0; k < cluster_list.length; k++){
+					var counter = 0;
+					cluster_list[k].lat = 0.0;
+					cluster_list[k].lon = 0.0;
+					for(var point_index = 0; point_index < points_list.length; point_index++){
+						cluster_list[k].lat += points_list[point_index].lat;
+						cluster_list[k].lon += points_list[point_index].lon;
+						counter++;
+					}
+					cluster_list[k].lat = cluster_list[k].lat / counter
+					cluster_list[k].lon = cluster_list[k].lon / counter
 				}
-				cluster_list[k].lat = cluster_list[k].lat / counter
-				cluster_list[k].lon = cluster_list[k].lon / counter
+			}
+			var best_within_k = {};
+			best_within_k.store = cluster_list;
+			var score = 0.0;
+			for(var point_index = 0; point_index < points_list.length; point_index++){
+				score += distance(points_list[point_index], cluster_list[points_list[point_index].cluster])
+			}
+			best_within_k.score = score;
+			within_k_list.push(best_within_k);
+		}
+		//end of kmeans for current k, now create ranking
+		var best_k = within_k_list[0];
+		for(var i = 0; i < within_k_list.length; i++){
+			if (within_k_list.score < best_k.score) {
+				best_k.store = within_k_list[i].store;
+				best_k.score = within_k_list.score;
 			}
 		}
-		//end of kmeans, now create ranking
-		var to_rank = {};
-		to_rank.store = cluster_list;
-		var score = 0.0;
-		for(var point_index = 0; point_index < points_list.length; point_index++){
-			score += distance(points_list[point_index], cluster_list[points_list[point_index].cluster])
-		}
-		to_rank.score = score;
-		results_list.push(to_rank);
+		
+		results_list.push(best_k);
 	}
 
 	best_score_index = 0;
