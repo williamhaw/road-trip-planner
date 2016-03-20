@@ -2,6 +2,7 @@
 var current_place;
 var place_list = [];
 var map;
+var markers = [];
 //************************
 
 window.onload = function initMap(){
@@ -13,8 +14,10 @@ window.onload = function initMap(){
 	var input = (document.getElementById('autocomplete-input'));/** @type {!HTMLInputElement} */
 	var dest_list = document.getElementById('destinationlist');
 	var optimize_button = document.getElementById('optimize-button');
+	var clear_button = document.getElementById('clear-button');
 	map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
 	map.controls[google.maps.ControlPosition.TOP_LEFT].push(optimize_button);
+	map.controls[google.maps.ControlPosition.TOP_LEFT].push(clear_button);
 	map.controls[google.maps.ControlPosition.TOP_RIGHT].push(dest_list);
 
 	var autocomplete = new google.maps.places.Autocomplete(input);
@@ -86,6 +89,7 @@ function optimizeButton(){
 		tmp.cluster = -1;
 		points_list.push(tmp);
 	}
+	console.log("points to optimize:")
 	console.log(points_list);
 	var start = new Date().getTime();
 	var clusters = kmeans(points_list);
@@ -93,12 +97,7 @@ function optimizeButton(){
 	console.log("Time taken:" + (end-start))
 	console.log(clusters);
 	for (var i = 0; i < clusters.store.length; i++){
-		var marker = new google.maps.Marker({
-	          position: {lat: clusters.store[i].lat, lng: clusters.store[i].lon},
-	          map: map,
-	          title: 'Hello World!'
-	        });
-		marker.setVisible(true);
+		addMarkerAtPos(clusters.store[i].lat, clusters.store[i].lon);
 	}
 }
 
@@ -137,9 +136,11 @@ function kmeans(points_list){
 					cluster_list[k].lat = 0.0;
 					cluster_list[k].lon = 0.0;
 					for(var point_index = 0; point_index < points_list.length; point_index++){
-						cluster_list[k].lat += points_list[point_index].lat;
-						cluster_list[k].lon += points_list[point_index].lon;
-						counter++;
+						if(points_list[point_index].cluster == k){//ensure that only points assigned to cluster k are counted
+							cluster_list[k].lat += points_list[point_index].lat;
+							cluster_list[k].lon += points_list[point_index].lon;
+							counter++;
+						}
 					}
 					cluster_list[k].lat = cluster_list[k].lat / counter
 					cluster_list[k].lon = cluster_list[k].lon / counter
@@ -166,9 +167,10 @@ function kmeans(points_list){
 		results_list.push(best_k);
 	}
 
+	results_list.sort(function(a,b) {return (a.score > b.score) ? -1 : ((b.score > a.score) ? 1 : 0);} );
 	best_score_index = 0;
-	for(var i = 0; i < results_list.length; i++){
-		if (results_list[i].score < results_list[best_score_index].score) {best_score_index = i}
+	for(var i = 0; i < results_list.length-1; i++){//look for big drop in score; indicates overfitting
+		if ((results_list[i].score - results_list[i+1].score) < 0.1 * (results_list[best_score_index].score - results_list[best_score_index+1].score)) {best_score_index = i}
 	}
 	console.log("results:");
 	console.log(results_list);
@@ -206,6 +208,22 @@ function getRandomSubArray(original, n){
 		tmp[index] = tmp[swap_index];
 		tmp[swap_index] = t;
 	}
-	console.log(swap_index_store);
 	return tmp.slice(0, n);
+}
+
+function addMarkerAtPos(lat, lon){
+	var marker = new google.maps.Marker({
+	          position: {lat: lat, lng: lon},
+	          map: map,
+	          title: 'Hello World!'
+	        });
+	marker.setVisible(true);
+	markers.push(marker);
+}
+
+function clearMarkers(){
+	for (var i = 0; i < markers.length; i++) {
+		markers[i].setMap(null);
+	}
+	markers = [];
 }
