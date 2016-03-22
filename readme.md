@@ -1,5 +1,6 @@
 # Road Trip Planner
 When planning a trip with multiple locations that one wants to visit, one would ask a few questions:
+
 1. Which locations are close enough to one another to visit in one day?
 2. How long would it take for me to go from the place I'm staying to all the places I want to go?
 3. What is the best order in which to visit these places?
