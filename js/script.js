@@ -1,8 +1,22 @@
-//****** Globals ********
+//****** Globals *********
 var current_place;
 var place_list = [];
 var map;
 var markers = [];
+//************************
+
+//******* Objects ********
+function Cluster(lat, lon){
+	this.lat = lat;
+	this.lon = lon;
+	this.points = [];
+}
+
+function ClusterPoint(lat, lon, cluster){
+	this.lat = lat;
+	this.lon = lon;
+	this.cluster = cluster;
+}
 //************************
 
 window.onload = function initMap(){
@@ -83,10 +97,7 @@ window.onload = function initMap(){
 function optimizeButton(){
 	var points_list = [];
 	for(var point = 0; point < place_list.length; point++){
-		var tmp = {};
-		tmp.lat = place_list[point].geometry.location.lat();
-		tmp.lon = place_list[point].geometry.location.lng();
-		tmp.cluster = -1;
+		var tmp = new ClusterPoint(place_list[point].geometry.location.lat(), place_list[point].geometry.location.lng(), -1);
 		points_list.push(tmp);
 	}
 	console.log("points to optimize:")
@@ -97,7 +108,7 @@ function optimizeButton(){
 	console.log("Time taken:" + (end-start))
 	console.log(clusters);
 	for (var i = 0; i < clusters.store.length; i++){
-		addMarkerAtPos(clusters.store[i].lat, clusters.store[i].lon);
+		addMarkerAtPos(clusters.store[i].lat, clusters.store[i].lon, "Day " + (i+1));
 	}
 }
 
@@ -146,6 +157,15 @@ function kmeans(points_list){
 					cluster_list[k].lon = cluster_list[k].lon / counter
 				}
 			}
+
+			for (var cluster_index = 0; cluster_index < cluster_list.length; cluster_index++){
+				for(var point_index = 0; point_index < points_list.length; point_index++){
+					if(points_list[point_index].cluster === cluster_index){
+						cluster_list[cluster_index].points.push(new ClusterPoint(points_list[point_index].lat, points_list[point_index].lon, cluster_index));
+					}
+				}
+			}
+
 			var best_within_k = {};
 			best_within_k.store = cluster_list;
 			var score = 0.0;
@@ -184,9 +204,7 @@ function distance(a, b){
 function generateClusterList(points_list, k){
 	var result = [];
 	for(var i = 0; i < points_list.length; i++){
-		var cluster_point = {};
-		cluster_point.lat = points_list[i].lat;
-		cluster_point.lon = points_list[i].lon;
+		var cluster_point = new Cluster(points_list[i].lat, points_list[i].lon);
 		result.push(cluster_point);
 	}
 	return getRandomSubArray(result, k); //use k points to start
@@ -195,9 +213,7 @@ function generateClusterList(points_list, k){
 function getRandomSubArray(original, n){
 	var tmp = [];
 	for(var i=0; i < original.length; i++){
-		var tmp_obj = {};
-		tmp_obj.lat = original[i].lat;
-		tmp_obj.lon = original[i].lon;
+		var tmp_obj = new Cluster(original[i].lat, original[i].lon);
 		tmp.push(tmp_obj);
 	}
 	var swap_index_store = [];
@@ -211,11 +227,11 @@ function getRandomSubArray(original, n){
 	return tmp.slice(0, n);
 }
 
-function addMarkerAtPos(lat, lon){
+function addMarkerAtPos(lat, lon, title){
 	var marker = new google.maps.Marker({
 	          position: {lat: lat, lng: lon},
 	          map: map,
-	          title: 'Hello World!'
+	          title: title
 	        });
 	marker.setVisible(true);
 	markers.push(marker);
